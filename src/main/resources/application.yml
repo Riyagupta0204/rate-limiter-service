@@ -1,0 +1,40 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: rate-limiter-service
+  data:
+    redis:
+      # Defaults work for local `mvn spring-boot:run` with Redis on localhost.
+      # In Docker Compose we override REDIS_HOST=redis via an environment variable.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+
+# Expose health + info (production-style). Keep the surface small on purpose.
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+
+# ---- Our own rate-limiter configuration ----
+# capacity     = max tokens the bucket can hold  (this is your BURST size)
+# refill-rate  = tokens added per second         (this is your STEADY-STATE rate)
+# A request costs `cost` tokens (default 1).
+ratelimiter:
+  ttl-seconds: 3600          # Redis key expiry so idle buckets clean themselves up
+  default-limit:
+    capacity: 10
+    refill-rate: 5
+    cost: 1
+  # Per-tenant overrides. The filter/controller picks a tenant from a header or key.
+  tenants:
+    free:
+      capacity: 5
+      refill-rate: 1
+      cost: 1
+    premium:
+      capacity: 100
+      refill-rate: 50
+      cost: 1
