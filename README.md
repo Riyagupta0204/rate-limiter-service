@@ -81,7 +81,7 @@ Java 17 · Spring Boot 3.3 · Redis 7 (+ Lua) · Docker & Docker Compose · JUni
 ### Option A — Docker Compose (recommended, no Java/Maven needed)
 
 ```bash
-docker compose up --build
+docker-compose up --build
 ```
 
 This builds the app image, starts Redis + the app, and waits for Redis to be healthy. The API is then at **http://localhost:8080**.
