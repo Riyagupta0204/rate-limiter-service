@@ -7,8 +7,10 @@
 services:
   redis:
     image: redis:7-alpine
-    ports:
-      - "6379:6379"          # exposed so you can also poke Redis from your host
+    # Intentionally NOT published to the host. The app reaches Redis over Compose's
+    # internal network (REDIS_HOST=redis), so no host port is needed — and this avoids
+    # clashing with any other Redis already using host port 6379.
+    # To inspect it manually:  docker compose exec redis redis-cli
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
