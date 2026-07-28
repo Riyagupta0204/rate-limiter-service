@@ -48,6 +48,12 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Exposes /actuator/prometheus so Prometheus can scrape Micrometer metrics -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
+
         <!-- ===== Testing ===== -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

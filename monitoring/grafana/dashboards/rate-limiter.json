@@ -1,0 +1,239 @@
+{
+  "title": "Rate Limiter Service",
+  "uid": "rate-limiter",
+  "schemaVersion": 36,
+  "version": 2,
+  "refresh": "5s",
+  "time": { "from": "now-5m", "to": "now" },
+  "panels": [
+
+    {
+      "id": 1,
+      "title": "Allow vs Deny rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(ratelimiter_decisions_total{result=\"allow\"}[30s])",
+          "legendFormat": "allow"
+        },
+        {
+          "expr": "rate(ratelimiter_decisions_total{result=\"deny\"}[30s])",
+          "legendFormat": "deny"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "unit": "reqps",
+          "custom": { "lineWidth": 2 }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "allow" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "deny"  }, "properties": [{ "id": "color", "value": { "fixedColor": "red",   "mode": "fixed" } }] }
+        ]
+      }
+    },
+
+    {
+      "id": 2,
+      "title": "Shadow would-deny rate (Feature 3)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(ratelimiter_shadow_would_deny_total[30s])",
+          "legendFormat": "would-deny/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "unit": "reqps",
+          "color": { "fixedColor": "orange", "mode": "fixed" },
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+
+    {
+      "id": 6,
+      "title": "Total checks rate (req/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(ratelimiter_decisions_total[30s]))",
+          "legendFormat": "total checks/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "unit": "reqps",
+          "color": { "fixedColor": "blue", "mode": "fixed" },
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+
+    {
+      "id": 7,
+      "title": "Blocked % (deny / total)",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "expr": "100 * rate(ratelimiter_decisions_total{result=\"deny\"}[30s]) / sum without(result)(rate(ratelimiter_decisions_total[30s]))",
+          "legendFormat": "blocked %"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+
+    {
+      "id": 5,
+      "title": "Allow / Deny totals",
+      "type": "stat",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 8 },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background"
+      },
+      "targets": [
+        {
+          "expr": "sum(ratelimiter_decisions_total{result=\"allow\"})",
+          "legendFormat": "Total Allowed"
+        },
+        {
+          "expr": "sum(ratelimiter_decisions_total{result=\"deny\"})",
+          "legendFormat": "Total Denied"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "color": { "mode": "palette-classic" }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Total Allowed" }, "properties": [{ "id": "color", "value": { "fixedColor": "green", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Total Denied"  }, "properties": [{ "id": "color", "value": { "fixedColor": "red",   "mode": "fixed" } }] }
+        ]
+      }
+    },
+
+    {
+      "id": 9,
+      "title": "Penalty box escalations",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(ratelimiter_penalty_total{level=\"WARNING\"}[30s])",
+          "legendFormat": "WARNING (30s ban)"
+        },
+        {
+          "expr": "rate(ratelimiter_penalty_total{level=\"PENALTY\"}[30s])",
+          "legendFormat": "PENALTY (5min ban)"
+        },
+        {
+          "expr": "rate(ratelimiter_penalty_total{level=\"BOX\"}[30s])",
+          "legendFormat": "BOX (1hr ban)"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "unit": "reqps",
+          "custom": { "lineWidth": 2 },
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+
+    {
+      "id": 8,
+      "title": "Lua/Redis check latency (p50 / p95 / p99)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum by(le) (rate(ratelimiter_check_latency_seconds_bucket{outcome=\"success\"}[30s])))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum by(le) (rate(ratelimiter_check_latency_seconds_bucket{outcome=\"success\"}[30s])))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum by(le) (rate(ratelimiter_check_latency_seconds_bucket{outcome=\"success\"}[30s])))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "unit": "s",
+          "custom": { "lineWidth": 2 },
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+
+    {
+      "id": 3,
+      "title": "Redis / script failures (Feature 4)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 6, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(ratelimiter_redis_error_total[30s])",
+          "legendFormat": "errors/s"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "unit": "reqps",
+          "color": { "fixedColor": "red", "mode": "fixed" },
+          "custom": { "lineWidth": 2 }
+        }
+      }
+    },
+
+    {
+      "id": 4,
+      "title": "Fail-open vs Fail-closed (Feature 4)",
+      "type": "timeseries",
+      "gridPos": { "x": 18, "y": 16, "w": 6, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(ratelimiter_fail_open_total[30s])",
+          "legendFormat": "fail-open"
+        },
+        {
+          "expr": "rate(ratelimiter_fail_closed_total[30s])",
+          "legendFormat": "fail-closed"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "noValue": "0",
+          "unit": "reqps",
+          "custom": { "lineWidth": 2 },
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    }
+
+  ]
+}

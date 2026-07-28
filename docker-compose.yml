@@ -1,16 +1,16 @@
 # Runs the whole system with one command:  docker compose up --build
 #
-# Two services on a shared private network. The app finds Redis by the service
-# name "redis" (Docker Compose provides DNS), which is why application.yml reads
-# REDIS_HOST from an env var — set to "redis" here, defaulting to localhost otherwise.
+# Services:
+#   redis      - token bucket state (internal network only, no host port)
+#   app        - the rate limiter Spring Boot service  -> localhost:8080
+#   prometheus - scrapes /actuator/prometheus every 5s -> localhost:9090
+#   grafana    - dashboards on top of Prometheus       -> localhost:3000
 
 services:
   redis:
     image: redis:7-alpine
-    # Intentionally NOT published to the host. The app reaches Redis over Compose's
-    # internal network (REDIS_HOST=redis), so no host port is needed — and this avoids
-    # clashing with any other Redis already using host port 6379.
-    # To inspect it manually:  docker compose exec redis redis-cli
+    # Not published to host — avoids clashing with any other Redis on port 6379.
+    # App reaches it via the internal Docker network as "redis".
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -18,12 +18,36 @@ services:
       retries: 5
 
   app:
-    build: .                 # build the image from the Dockerfile in this folder
+    build: .
     ports:
       - "8080:8080"
     environment:
-      REDIS_HOST: redis      # <-- talk to the "redis" service, not localhost
+      REDIS_HOST: redis
       REDIS_PORT: 6379
     depends_on:
       redis:
-        condition: service_healthy   # wait until Redis passes its healthcheck
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v2.51.0
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:10.4.2
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin   # login: admin / admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus

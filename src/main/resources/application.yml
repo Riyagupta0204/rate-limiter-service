@@ -16,7 +16,13 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        include: health,info,metrics,prometheus
+  metrics:
+    tags:
+      application: rate-limiter-service   # attached to every metric as a label
+    distribution:
+      percentiles-histogram:
+        ratelimiter.check.latency: true   # publish buckets so Prometheus can compute p50/p95/p99
 
 # ---- Our own rate-limiter configuration ----
 # capacity     = max tokens the bucket can hold  (this is your BURST size)
@@ -38,3 +44,50 @@ ratelimiter:
       capacity: 100
       refill-rate: 50
       cost: 1
+
+  # ---- Feature 1: cost-weighted routes (first matching rule wins) ----
+  # A request's cost = the matched route's cost, otherwise default-cost.
+  # (Bucket size/refill still come from the tenant limit above.)
+  default-cost: 1
+  routes:
+    - pattern: "/api/search/**"   # a moderately expensive endpoint
+      cost: 5
+    - pattern: "/api/heavy/**"    # a very expensive endpoint
+      cost: 50
+      # Feature 3 & 4 per-route overrides (optional; omit to inherit the globals below):
+      # mode: shadow              # observe-only for this route while you tune limits
+      # on-redis-error: fail-closed
+
+  # ---- Penalty box: escalating bans for repeat offenders ----
+  # Violation count is tracked in Redis (rl:violations:{clientId}).
+  # TTL resets on each new violation — keeps repeat offenders stuck in penalty.
+  penalty-box:
+    enabled: true
+    warning-threshold: 3    # 3+ violations → 30s Retry-After
+    penalty-threshold: 5    # 5+ violations → 5min Retry-After
+    box-threshold: 10       # 10+ violations → 1hr Retry-After
+    violation-window-seconds: 3600   # quiet for 1hr → violation count resets
+
+  # ---- Feature 3: shadow vs enforce (global default) ----
+  # enforce = denied requests get a real 429.
+  # shadow  = compute the same decision, log + count it, but STILL allow (safe rollout).
+  mode: enforce
+
+  # ---- Feature 4: behaviour when Redis is unreachable (global default) ----
+  # fail-open   = allow the request if Redis errors (availability first).
+  # fail-closed = reject with 503 if Redis errors (protection first).
+  on-redis-error: fail-open
+
+  # ---- Feature 2: hierarchical multi-key limits ----
+  # When enabled, an /api/** request must satisfy BOTH a per-IP and a per-user
+  # bucket atomically (all-or-nothing). Disabled by default so the single-key
+  # behaviour above is unchanged until you opt in.
+  hierarchical:
+    enabled: false
+    ip:
+      capacity: 10
+      refill-rate: 1
+    user:
+      capacity: 3
+      refill-rate: 1
+    include-tenant: false
